@@ -1,9 +1,9 @@
 # Kuato
-
-> **Quaid:** The same as you; to remember.
-> **Kuato:** But why?
-> **Quaid:** To be myself again.
-> **Kuato:** You are what you do. A man is defined by his actions, not his memory.
+> **Kuato:** What do you want, Mr. Quaid?   
+> **Quaid:** The same as you; to remember.   
+> **Kuato:** But why?   
+> **Quaid:** To be myself again.   
+> **Kuato:** You are what you do. A man is defined by his actions, not his memory.   
 
 Session memory for Claude Code. Find what you discussed, what decisions you made, and where you left off.
 
