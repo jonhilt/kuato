@@ -134,21 +134,94 @@ Combined with `files_touched` and `tools_used`, you can reconstruct the session 
 
 ### File-Based Search
 
-1. Scans `~/.claude/projects/*/` for JSONL files
-2. Parses each file, extracts metadata
-3. Scores relevance against search query
-4. Returns sorted results
+Simple substring matching on user messages, tools, and file paths.
 
-Simple but effective. Scales to hundreds of sessions.
+```
+Query: "septa"
+↓
+Scan each JSONL file
+↓
+Check if "septa" appears in:
+  - userMessages[]
+  - toolsUsed[]
+  - filesFromToolCalls[]
+↓
+Score by match count
+↓
+Return sorted results
+```
+
+**Pros:** Zero setup, no dependencies beyond Bun
+**Cons:** Slower on large histories, no stemming ("running" won't match "run")
 
 ### PostgreSQL Search
 
-1. Sync job parses JSONL → database
-2. PostgreSQL tsvector for weighted full-text search
-3. Trigram index for fuzzy matching
-4. Sub-100ms queries across thousands of sessions
+Full-text search with linguistic processing using `tsvector` and `tsquery`.
 
-Worth the setup if you're a heavy user.
+**Step 1: Text becomes tokens (tsvector)**
+
+```sql
+SELECT to_tsvector('english', 'The quick brown foxes are jumping');
+-- Result: 'brown':3 'fox':4 'jump':5 'quick':2
+```
+
+Notice:
+- **Stop words removed:** "The", "are" → gone
+- **Stemming:** "foxes" → `fox`, "jumping" → `jump`
+- **Positions tracked:** `fox:4` means 4th significant word
+
+**Step 2: Queries match stems**
+
+```sql
+-- All of these match "The quick brown fox":
+SELECT to_tsvector('english', 'The quick brown fox')
+  @@ to_tsquery('english', 'foxes');      -- true (stems to fox)
+  @@ to_tsquery('english', 'quick & brown'); -- true (AND)
+  @@ to_tsquery('english', 'quick | cat');   -- true (OR)
+```
+
+**Step 3: Weights rank importance**
+
+Sessions are indexed with weighted fields:
+
+| Weight | Field | Priority |
+|--------|-------|----------|
+| A | `summary` | Highest (future use) |
+| B | `search_text` | User messages |
+| C | `tools_used`, `files_touched` | Tools and paths |
+| D | `cwd` | Working directory |
+
+```sql
+-- "holiday" in user messages (B) ranks higher than in file path (C)
+SELECT ts_rank(search_vector, to_tsquery('holiday')) FROM sessions;
+```
+
+**Step 4: GIN index makes it fast**
+
+```sql
+CREATE INDEX idx_sessions_search_vector ON sessions USING GIN(search_vector);
+```
+
+GIN (Generalized Inverted Index) is like a book index:
+- Without index: scan every row → O(n)
+- With GIN: lookup "holiday" → [session1, session5, session12] → O(log n)
+
+**Step 5: File paths are tokenized**
+
+Raw paths like `/Users/alex/septa-holiday-bus/App.jsx` become searchable tokens:
+
+```sql
+-- We transform: '/path/to/septa-holiday/' → 'path to septa holiday'
+regexp_replace(path, '[/\-_.]', ' ', 'g')
+```
+
+So searching "septa" finds sessions that touched files in `septa-*` directories.
+
+**Speed comparison:**
+- File-based: ~150ms (substring scan)
+- PostgreSQL: ~30ms (index lookup)
+
+The gap grows with session count. At 1000+ sessions, PostgreSQL is 10-50x faster.
 
 ## API Reference (PostgreSQL)
 
