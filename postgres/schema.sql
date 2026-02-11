@@ -40,6 +40,9 @@ CREATE TABLE IF NOT EXISTS sessions (
     transcript_path TEXT,
     transcript_hash VARCHAR(32),  -- MD5 for change detection
 
+    -- Source classification (auto-populated by trigger)
+    source VARCHAR(50),
+
     -- Optional classification (if you want to add LLM summaries later)
     summary TEXT,
     category VARCHAR(100),
@@ -53,6 +56,7 @@ CREATE TABLE IF NOT EXISTS sessions (
 CREATE INDEX IF NOT EXISTS idx_sessions_ended_at ON sessions(ended_at DESC);
 CREATE INDEX IF NOT EXISTS idx_sessions_started_at ON sessions(started_at DESC);
 CREATE INDEX IF NOT EXISTS idx_sessions_category ON sessions(category);
+CREATE INDEX IF NOT EXISTS idx_sessions_source ON sessions(source);
 
 -- Full-text search index (GIN for performance)
 CREATE INDEX IF NOT EXISTS idx_sessions_search_vector ON sessions USING GIN(search_vector);

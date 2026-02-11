@@ -7,10 +7,12 @@
  *   bun run postgres/sync.ts --all              # Full sync
  *   bun run postgres/sync.ts --days 7           # Last 7 days only
  *   bun run postgres/sync.ts --force            # Re-sync even if unchanged
+ *   bun run postgres/sync.ts --source mac-jon   # Tag sessions with source
  *
  * Environment:
  *   DATABASE_URL          - PostgreSQL connection string
  *   CLAUDE_SESSIONS_DIR   - Sessions directory (default: ~/.claude/projects)
+ *   SYNC_SOURCE           - Source label for synced sessions (e.g. pai, mac-jon)
  */
 
 import { readdirSync, statSync, readFileSync } from 'fs';
@@ -35,6 +37,7 @@ interface SyncOptions {
   days?: number;
   force?: boolean;
   limit?: number;
+  source?: string;
 }
 
 interface SyncStats {
@@ -177,6 +180,7 @@ async function syncSession(
         search_text,
         transcript_path,
         transcript_hash,
+        source,
         synced_at
       ) VALUES (
         ${session.id},
@@ -198,6 +202,7 @@ async function syncSession(
         ${searchText},
         ${filePath},
         ${hash},
+        ${options.source || null},
         NOW()
       )
       ON CONFLICT (id) DO UPDATE SET
@@ -219,6 +224,7 @@ async function syncSession(
         search_text = EXCLUDED.search_text,
         transcript_path = EXCLUDED.transcript_path,
         transcript_hash = EXCLUDED.transcript_hash,
+        source = COALESCE(EXCLUDED.source, sessions.source),
         synced_at = NOW()
     `;
 
@@ -241,6 +247,9 @@ async function sync(baseDir: string, options: SyncOptions): Promise<SyncStats> {
   };
 
   console.log(`Syncing sessions from: ${baseDir}`);
+  if (options.source) {
+    console.log(`Source tag: ${options.source}`);
+  }
 
   // Get existing hashes for change detection
   const existingHashes = await getExistingHashes();
@@ -271,6 +280,7 @@ async function main() {
       days: { type: 'string', short: 'd' },
       force: { type: 'boolean', short: 'f' },
       limit: { type: 'string', short: 'l' },
+      source: { type: 'string', short: 's' },
       dir: { type: 'string' },
       help: { type: 'boolean', short: 'h' },
     },
@@ -288,27 +298,32 @@ Options:
   -d, --days <n>         Only sync last N days
   -f, --force            Re-sync even if file unchanged
   -l, --limit <n>        Max files to process
+  -s, --source <name>    Source label (e.g. pai, mac-jon)
   --dir <path>           Sessions directory
   -h, --help             Show this help
 
 Environment:
   DATABASE_URL           PostgreSQL connection string
   CLAUDE_SESSIONS_DIR    Default sessions directory
+  SYNC_SOURCE            Source label (--source flag takes priority)
 
 Examples:
-  bun run sync.ts                    # Incremental sync
-  bun run sync.ts --all              # Full sync
-  bun run sync.ts --days 7           # Last week only
-  bun run sync.ts --force            # Force re-sync
+  bun run sync.ts                          # Incremental sync
+  bun run sync.ts --all                    # Full sync
+  bun run sync.ts --days 7                 # Last week only
+  bun run sync.ts --source mac-jon         # Tag with source
 `);
     process.exit(0);
   }
+
+  const source = values.source || process.env.SYNC_SOURCE;
 
   const options: SyncOptions = {
     all: values.all,
     days: values.days ? parseInt(values.days, 10) : undefined,
     force: values.force,
     limit: values.limit ? parseInt(values.limit, 10) : undefined,
+    source,
   };
 
   const baseDir = values.dir || DEFAULT_SESSIONS_DIR;
