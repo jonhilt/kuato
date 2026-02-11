@@ -6,9 +6,7 @@
 # PAI server sessions.
 #
 # Usage:
-#   curl -sL https://raw.githubusercontent.com/alexknowshtml/kuato/main/mac/setup.sh | bash
-#   # OR
-#   git clone https://github.com/alexknowshtml/kuato.git && cd kuato && bash mac/setup.sh
+#   git clone https://github.com/jonhilt/kuato.git && cd kuato && bash mac/setup.sh
 #
 # What it does:
 #   1. Installs bun (if not present)
@@ -19,6 +17,11 @@
 #   6. Runs an initial sync
 
 set -euo pipefail
+
+# Resolve the directory this script lives in (handles both direct run and symlinks)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# The kuato repo root is one level up from mac/
+SCRIPT_REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 KUATO_DIR="$HOME/.kuato"
 KUATO_REPO="$KUATO_DIR/repo"
@@ -43,16 +46,21 @@ else
 fi
 echo ""
 
-# ── Step 2: Clone kuato ─────────────────────────────────
+# ── Step 2: Set up kuato repo ────────────────────────────
 echo "Step 2: Setting up kuato repo..."
 mkdir -p "$KUATO_DIR"
 
-if [ -d "$KUATO_REPO/.git" ]; then
-  echo "  Repo exists, pulling latest..."
-  cd "$KUATO_REPO" && git pull --quiet
+if [ "$SCRIPT_REPO_ROOT" != "$KUATO_REPO" ]; then
+  # Running from a different location — copy or symlink to ~/.kuato/repo
+  if [ -d "$KUATO_REPO/.git" ]; then
+    echo "  Repo exists at $KUATO_REPO, pulling latest..."
+    cd "$KUATO_REPO" && git pull --quiet
+  else
+    echo "  Cloning kuato from fork..."
+    git clone --quiet https://github.com/jonhilt/kuato.git "$KUATO_REPO"
+  fi
 else
-  echo "  Cloning kuato..."
-  git clone --quiet https://github.com/alexknowshtml/kuato.git "$KUATO_REPO"
+  echo "  Already running from $KUATO_REPO"
 fi
 echo ""
 
