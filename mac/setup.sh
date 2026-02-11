@@ -105,9 +105,9 @@ if launchctl list | grep -q "$PLIST_NAME" 2>/dev/null; then
   launchctl unload "$PLIST_DEST" 2>/dev/null || true
 fi
 
-# Copy sync.sh
+# Copy sync.sh (from the directory this script lives in, not ~/.kuato/repo)
 SYNC_SH="$KUATO_DIR/sync.sh"
-cp "$KUATO_REPO/mac/sync.sh" "$SYNC_SH"
+cp "$SCRIPT_DIR/sync.sh" "$SYNC_SH"
 chmod +x "$SYNC_SH"
 
 # Generate plist from template
@@ -116,7 +116,7 @@ sed \
   -e "s|KUATO_SYNC_SH_PATH|$SYNC_SH|g" \
   -e "s|KUATO_DIR|$KUATO_DIR|g" \
   -e "s|HOME_DIR|$HOME|g" \
-  "$KUATO_REPO/mac/com.kuato.sync.plist" > "$PLIST_DEST"
+  "$SCRIPT_DIR/com.kuato.sync.plist" > "$PLIST_DEST"
 
 # Load the agent
 launchctl load "$PLIST_DEST"
